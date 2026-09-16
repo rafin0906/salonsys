@@ -1,0 +1,226 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface-container-lowest: #0e0e0e;
+  --color-surface-container-low: #1c1b1b;
+  --color-surface-container: #201f1f;
+  --color-surface-container-high: #2a2a2a;
+  --color-surface-container-highest: #353534;
+  --color-surface: #131313;
+  --color-surface-dim: #131313;
+  --color-surface-bright: #3a3939;
+  --color-background: #131313;
+  --color-surface-variant: #353534;
+
+  --color-primary: #d7c77f;
+  --color-primary-container: #827536;
+  --color-on-primary: #393000;
+  --color-on-primary-container: #fffcff;
+  --color-primary-fixed: #f4e398;
+  --color-primary-fixed-dim: #d7c77f;
+  --color-inverse-primary: #6a5e22;
+
+  --color-secondary: #c8c6c1;
+  --color-secondary-container: #494945;
+  --color-on-secondary: #30312d;
+  --color-on-secondary-container: #bab8b3;
+  --color-secondary-fixed: #e4e2dc;
+  --color-secondary-fixed-dim: #c8c6c1;
+
+  --color-tertiary: #d1c882;
+  --color-tertiary-container: #b5ad69;
+  --color-on-tertiary: #363100;
+  --color-tertiary-fixed: #eee59c;
+  --color-tertiary-fixed-dim: #d1c882;
+
+  --color-on-surface: #e5e2e1;
+  --color-on-surface-variant: #cdc6b5;
+  --color-on-background: #e5e2e1;
+  --color-outline: #969081;
+  --color-outline-variant: #4a473a;
+
+  --color-error: #ffb4ab;
+  --color-error-container: #93000a;
+  --color-on-error: #690005;
+  --color-on-error-container: #ffdad6;
+
+  --font-display: 'Playfair Display', serif;
+  --font-headline: 'Playfair Display', serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-label: 'DM Sans', sans-serif;
+}
+
+/* Custom Spacing from Design System */
+:root {
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --margin: 2.5rem;
+  --margin-mobile: 1rem;
+  --gutter: 1.5rem;
+  --gutter-mobile: 0.75rem;
+}
+
+/* Utility classes matching Stitch design tokens */
+.p-space-xs { padding: var(--space-xs); }
+.p-space-sm { padding: var(--space-sm); }
+.p-space-md { padding: var(--space-md); }
+.p-space-lg { padding: var(--space-lg); }
+.p-space-xl { padding: var(--space-xl); }
+
+.px-space-xs { padding-left: var(--space-xs); padding-right: var(--space-xs); }
+.px-space-sm { padding-left: var(--space-sm); padding-right: var(--space-sm); }
+.px-space-md { padding-left: var(--space-md); padding-right: var(--space-md); }
+.px-space-lg { padding-left: var(--space-lg); padding-right: var(--space-lg); }
+.px-space-xl { padding-left: var(--space-xl); padding-right: var(--space-xl); }
+.px-margin { padding-left: var(--margin); padding-right: var(--margin); }
+.px-margin-mobile { padding-left: var(--margin-mobile); padding-right: var(--margin-mobile); }
+
+.py-space-xs { padding-top: var(--space-xs); padding-bottom: var(--space-xs); }
+.py-space-sm { padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
+.py-space-md { padding-top: var(--space-md); padding-bottom: var(--space-md); }
+.py-space-lg { padding-top: var(--space-lg); padding-bottom: var(--space-lg); }
+.py-space-xl { padding-top: var(--space-xl); padding-bottom: var(--space-xl); }
+
+.pt-space-xs { padding-top: var(--space-xs); }
+.pt-space-sm { padding-top: var(--space-sm); }
+.pt-space-md { padding-top: var(--space-md); }
+.pt-space-lg { padding-top: var(--space-lg); }
+.pt-space-xl { padding-top: var(--space-xl); }
+
+.pb-space-xs { padding-bottom: var(--space-xs); }
+.pb-space-sm { padding-bottom: var(--space-sm); }
+.pb-space-md { padding-bottom: var(--space-md); }
+.pb-space-lg { padding-bottom: var(--space-lg); }
+.pb-space-xl { padding-bottom: var(--space-xl); }
+
+.gap-space-xs { gap: var(--space-xs); }
+.gap-space-sm { gap: var(--space-sm); }
+.gap-space-md { gap: var(--space-md); }
+.gap-space-lg { gap: var(--space-lg); }
+.gap-space-xl { gap: var(--space-xl); }
+.gap-gutter { gap: var(--gutter); }
+
+.mt-space-xs { margin-top: var(--space-xs); }
+.mt-space-sm { margin-top: var(--space-sm); }
+.mt-space-md { margin-top: var(--space-md); }
+.mt-space-lg { margin-top: var(--space-lg); }
+.mt-space-xl { margin-top: var(--space-xl); }
+
+.mb-space-xs { margin-bottom: var(--space-xs); }
+.mb-space-sm { margin-bottom: var(--space-sm); }
+.mb-space-md { margin-bottom: var(--space-md); }
+.mb-space-lg { margin-bottom: var(--space-lg); }
+.mb-space-xl { margin-bottom: var(--space-xl); }
+
+/* Typography Tokens */
+.font-display-lg {
+  font-family: 'Playfair Display', serif;
+  font-size: 40px;
+  line-height: 48px;
+  letter-spacing: -0.01em;
+  font-weight: 400;
+}
+
+.font-headline-lg {
+  font-family: 'Playfair Display', serif;
+  font-size: 32px;
+  line-height: 40px;
+  letter-spacing: -0.01em;
+  font-weight: 400;
+}
+
+.font-headline-md {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: 0em;
+  font-weight: 400;
+}
+
+.font-headline-sm {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  line-height: 24px;
+  letter-spacing: 0em;
+  font-weight: 500;
+}
+
+.font-body-lg {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0em;
+  font-weight: 400;
+}
+
+.font-body-md {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.01em;
+  font-weight: 400;
+}
+
+.font-body-sm {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.01em;
+  font-weight: 400;
+}
+
+.font-label-lg {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.font-label-md {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}
+
+.font-label-sm {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+}
+
+/* Material Symbols Helper */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #131313;
+  color: #e5e2e1;
+  font-family: 'DM Sans', sans-serif;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
