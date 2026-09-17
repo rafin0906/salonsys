@@ -3,20 +3,12 @@ import { api } from '../services/api';
 
 export default function BusinessSummaryView({ activeBranch = 'All Sanctuaries' }) {
   const [data, setData] = useState({
-    total_customers: 126,
-    today_appointments: 23,
-    today_revenue: 8450,
-    total_barbers: 6,
-    revenue_formatted: '৳8,450',
-    activity_chart: [
-      { day: 'Mon', appointments: 14, bar_height: 90 },
-      { day: 'Tue', appointments: 18, bar_height: 105 },
-      { day: 'Wed', appointments: 12, bar_height: 75 },
-      { day: 'Thu', appointments: 22, bar_height: 120 },
-      { day: 'Fri', appointments: 25, bar_height: 130 },
-      { day: 'Sat', appointments: 31, bar_height: 145, is_peak: true },
-      { day: 'Sun', appointments: 27, bar_height: 135 },
-    ],
+    total_customers: 0,
+    today_appointments: 0,
+    today_revenue: 0,
+    total_barbers: 0,
+    revenue_formatted: '৳0',
+    activity_chart: [],
     recent_appointments: [],
   });
 
@@ -27,6 +19,19 @@ export default function BusinessSummaryView({ activeBranch = 'All Sanctuaries' }
       })
       .catch((err) => console.warn('Using local summary stats:', err));
   }, [activeBranch]);
+
+  // Plot the trailing 7 days on the 700x200 viewBox (baseline y=170, cap y=25).
+  const chart = data.activity_chart?.length ? data.activity_chart : [];
+  const points = chart.map((pt, i) => {
+    const height = Math.max(2, Math.min(145, pt.bar_height ?? 25));
+    return {
+      ...pt,
+      x: 50 + i * (600 / Math.max(1, chart.length - 1)),
+      y: 170 - height,
+      height,
+    };
+  });
+  const linePath = points.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ');
 
   const metrics = [
     { label: 'Total Customers', value: data.total_customers, sub: 'All-time', highlight: true },
@@ -108,28 +113,42 @@ export default function BusinessSummaryView({ activeBranch = 'All Sanctuaries' }
             <line stroke="#262626" strokeDasharray="2 4" strokeWidth="1" x1="0" x2="700" y1="120" y2="120" />
             <line stroke="#353534" strokeWidth="1" x1="0" x2="700" y1="170" y2="170" />
 
-            <rect fill="#201f1f" height="90" rx="1" width="28" x="36" y="80" />
-            <rect fill="#201f1f" height="105" rx="1" width="28" x="136" y="65" />
-            <rect fill="#201f1f" height="75" rx="1" width="28" x="236" y="95" />
-            <rect fill="#201f1f" height="120" rx="1" width="28" x="336" y="50" />
-            <rect fill="#201f1f" height="130" rx="1" width="28" x="436" y="40" />
-            <rect fill="#2a2a2a" height="145" rx="1" width="28" x="536" y="25" />
-            <rect fill="#2a2a2a" height="135" rx="1" width="28" x="636" y="35" />
+            {points.map((pt) => (
+              <rect
+                key={`bar-${pt.day}`}
+                fill={pt.is_peak ? '#2a2a2a' : '#201f1f'}
+                height={pt.height}
+                rx="1"
+                width="28"
+                x={pt.x - 14}
+                y={170 - pt.height}
+              />
+            ))}
 
-            <path d="M 50 85 L 150 70 L 250 100 L 350 55 L 450 45 L 550 30 L 650 40 L 650 170 L 50 170 Z" fill="url(#primaryFade)" />
-            <path d="M 50 85 L 150 70 L 250 100 L 350 55 L 450 45 L 550 30 L 650 40" fill="none" stroke="#827536" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            {points.length > 1 && (
+              <>
+                <path d={`${linePath} L ${points.at(-1).x} 170 L ${points[0].x} 170 Z`} fill="url(#primaryFade)" />
+                <path d={linePath} fill="none" stroke="#827536" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+              </>
+            )}
 
-            <circle cx="50" cy="85" fill="#131313" r="3.5" stroke="#e5e2e1" strokeWidth="1.5" />
-            <circle cx="150" cy="70" fill="#131313" r="3.5" stroke="#e5e2e1" strokeWidth="1.5" />
-            <circle cx="250" cy="100" fill="#131313" r="3.5" stroke="#e5e2e1" strokeWidth="1.5" />
-            <circle cx="350" cy="55" fill="#131313" r="3.5" stroke="#e5e2e1" strokeWidth="1.5" />
-            <circle cx="450" cy="45" fill="#131313" r="3.5" stroke="#e5e2e1" strokeWidth="1.5" />
-            <circle cx="550" cy="30" fill="#d7c77f" r="4" stroke="#e5e2e1" strokeWidth="1.5" />
-            <circle cx="650" cy="40" fill="#131313" r="3.5" stroke="#e5e2e1" strokeWidth="1.5" />
+            {points.map((pt) => (
+              <circle
+                key={`dot-${pt.day}`}
+                cx={pt.x}
+                cy={pt.y}
+                fill={pt.is_peak ? '#d7c77f' : '#131313'}
+                r={pt.is_peak ? 4 : 3.5}
+                stroke="#e5e2e1"
+                strokeWidth="1.5"
+              >
+                <title>{`${pt.day}: ${pt.appointments} appointments`}</title>
+              </circle>
+            ))}
           </svg>
 
           <div className="grid grid-cols-7 w-full pt-space-xs text-center border-t border-outline-variant/30">
-            {data.activity_chart.map((pt) => (
+            {points.map((pt) => (
               <span key={pt.day} className={`font-label-sm text-label-sm ${pt.is_peak ? 'text-primary font-medium' : 'text-on-surface-variant'}`}>
                 {pt.day}
               </span>

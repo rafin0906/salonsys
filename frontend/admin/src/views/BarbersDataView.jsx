@@ -26,7 +26,7 @@ export default function BarbersDataView({ activeBranch = 'All Sanctuaries' }) {
   const loadBarbers = async () => {
     try {
       const data = await api.getBarbers(activeBranch);
-      if (data && data.length) setBarbers(data);
+      if (Array.isArray(data)) setBarbers(data);
     } catch (e) {
       console.warn('Barber API error, using local state:', e);
     }

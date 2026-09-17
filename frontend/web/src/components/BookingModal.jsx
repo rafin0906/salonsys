@@ -1,30 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { webApi } from '../services/api';
+
+const MENU = [
+  { name: 'Signature Atelier Cut & Beard Sculpt', price: 990 },
+  { name: 'Executive Grooming Routine', price: 800 },
+  { name: 'Essential Maintenance Clean', price: 500 },
+  { name: 'Royal Hair Spa & Scalp Therapy', price: 1800 },
+];
 
 export default function BookingModal({ isOpen, onClose, initialPackage = null }) {
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
   const [branch, setBranch] = useState('Rajshahi Atelier');
-  const [packageName, setPackageName] = useState(
-    initialPackage ? initialPackage.name : 'Signature Atelier Cut & Beard Sculpt'
-  );
+  const [packageName, setPackageName] = useState(initialPackage?.name || MENU[0].name);
   const [date, setDate] = useState('Today 11:30 AM');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
+  const [barbers, setBarbers] = useState([]);
+  const [stylist, setStylist] = useState('');
+
+  // The roster follows the chosen sanctuary - a client can only book a chair
+  // that actually sits in that branch.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    let active = true;
+    webApi.getBarbers(branch)
+      .then((list) => active && setBarbers(Array.isArray(list) ? list : []))
+      .catch(() => active && setBarbers([]));
+    return () => { active = false; };
+  }, [isOpen, branch]);
 
   if (!isOpen) return null;
+
+  // Deriving the pick from the live roster means switching branch quietly
+  // drops a stylist who does not work there, with no stale state to reset.
+  const chosen = barbers.find((b) => b.name === stylist) || null;
+
+  const priceFor = (label) =>
+    initialPackage?.name === label
+      ? initialPackage.discount_price ?? initialPackage.actual_price
+      : MENU.find((m) => m.name === label)?.price ?? 990;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !contact.trim()) return;
 
     setLoading(true);
+    setError('');
     const payload = {
       customer: name.trim(),
       contact: contact.trim(),
       package: packageName,
-      price: 990,
-      assigned_to: 'Assigned Master Stylist',
+      price: priceFor(packageName),
+      assigned_to: chosen ? chosen.name : 'Any available stylist',
       branch: branch,
       scheduled_time: date,
       status: 'Confirmed',
@@ -32,9 +61,9 @@ export default function BookingModal({ isOpen, onClose, initialPackage = null })
 
     try {
       const res = await webApi.bookAppointment(payload);
-      setSuccess(res.id || '#RES-2026-981');
+      setSuccess(res.id);
     } catch {
-      setSuccess('#RES-2026-' + Math.floor(100 + Math.random() * 900));
+      setError('We could not reach the studio just now. Please call us to confirm your chair.');
     } finally {
       setLoading(false);
     }
@@ -42,8 +71,10 @@ export default function BookingModal({ isOpen, onClose, initialPackage = null })
 
   const handleDone = () => {
     setSuccess(null);
+    setError('');
     setName('');
     setContact('');
+    setStylist('');
     onClose();
   };
 
@@ -71,7 +102,8 @@ export default function BookingModal({ isOpen, onClose, initialPackage = null })
                 We Await Your Presence
               </h3>
               <p className="font-body-md text-on-surface-variant mt-2 max-w-sm">
-                Your private chair care has been reserved at <span className="text-on-surface font-medium">{branch}</span>.
+                Your private chair care has been reserved at <span className="text-on-surface font-medium">{branch}</span>
+                {chosen ? <> with <span className="text-on-surface font-medium">{chosen.name}</span></> : ' with the next available stylist'}.
               </p>
               <div className="mt-4 p-3 bg-surface-container-lowest border border-outline-variant/30 rounded inline-block font-mono text-primary text-sm">
                 Booking Reference: {success}
@@ -98,6 +130,12 @@ export default function BookingModal({ isOpen, onClose, initialPackage = null })
                 Single-client unhurried grooming tailored to your schedule.
               </p>
             </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-error-container/20 border border-error/40 text-error rounded-[2px] font-body-sm">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 font-body-sm">
               <div className="flex flex-col gap-1.5">
@@ -157,6 +195,31 @@ export default function BookingModal({ isOpen, onClose, initialPackage = null })
                     onChange={(e) => setDate(e.target.value)}
                   />
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="font-label-sm uppercase tracking-wider text-outline text-[11px]">
+                  Preferred Stylist
+                </label>
+                <select
+                  className="h-10 px-2.5 bg-surface-container border border-outline-variant/40 rounded-[2px] text-on-surface focus:outline-none focus:border-primary transition-colors"
+                  value={chosen ? chosen.name : ''}
+                  onChange={(e) => setStylist(e.target.value)}
+                >
+                  <option value="">Any available stylist</option>
+                  {barbers.map((b) => (
+                    <option key={b.id} value={b.name}>
+                      {b.name}{b.role ? ` — ${b.role}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <span className="font-body-sm text-on-surface-variant text-[12px] leading-relaxed">
+                  {chosen
+                    ? `${chosen.role || 'Stylist'} · ★ ${chosen.rating || '—'} · ${chosen.branch}`
+                    : barbers.length
+                      ? `${barbers.length} chair${barbers.length === 1 ? '' : 's'} available at ${branch}. We will seat you with the best free stylist.`
+                      : `Loading the chair roster for ${branch}…`}
+                </span>
               </div>
 
               <div className="flex flex-col gap-1.5">

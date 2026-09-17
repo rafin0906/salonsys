@@ -16,9 +16,13 @@ SaloonSYS/
 │   │   ├── database.py       # Supabase connection & SessionLocal provider
 │   │   ├── models/           # Declarative database models (Appointments, Barbers, Packages, Users)
 │   │   ├── schemas/          # Pydantic validation schemas
-│   │   └── seed_data.py      # Master studio services & initial records
-│   ├── requirements.txt      # Python dependencies (fastapi, uvicorn, sqlalchemy, psycopg[binary])
+│   │   ├── api/routers/      # Auth, Users, Barbers, Packages, Appointments, Dashboard
+│   │   └── services/crud.py  # Query layer, dashboard maths & first-run seed data
+│   ├── requirements.txt      # Runtime dependencies (fastapi, uvicorn, sqlalchemy, psycopg[binary])
+│   ├── requirements-dev.txt  # Test dependencies (pytest, httpx)
 │   └── .env.example          # Environment template
+│
+├── devops_pipeline.py        # Full-stack verification pipeline (see below)
 │
 ├── frontend/
 │   ├── web/                  # Luxury Client Portal (Port 5174)
@@ -69,13 +73,9 @@ SaloonSYS/
 ```bash
 cd backend
 
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate      # On Windows
-# source venv/bin/activate # On macOS/Linux
-
-# Install dependencies
-pip install -r requirements.txt
+# Create the virtual environment and install dependencies with uv
+uv venv .venv
+uv pip install --python .venv -r requirements.txt -r requirements-dev.txt
 
 # Configure environment
 cp .env.example .env
@@ -83,8 +83,13 @@ cp .env.example .env
 # DATABASE_URL=postgresql+psycopg://postgres.<ref>:<password>@<host>:5432/postgres
 
 # Run development server
-python -m uvicorn app.main:app --reload --port 8000
+.venv/Scripts/python -m uvicorn app.main:app --reload --port 8000   # Windows
+# .venv/bin/python -m uvicorn app.main:app --reload --port 8000     # macOS/Linux
 ```
+
+> The API probes the database on startup. If `DATABASE_URL` is missing, still a
+> template, or unreachable, it logs the reason and falls back to a local
+> `saloon.db` SQLite file so the server always boots.
 Backend API interactive documentation will be available at `http://localhost:8000/docs`.
 
 ---
@@ -120,6 +125,31 @@ cp .env.example .env
 npm run dev -- --port 5173
 ```
 Access the protected admin desk at `http://localhost:5173`. Default master passcode: `atelier2026`.
+
+---
+
+## ✅ Verification Pipeline
+
+`devops_pipeline.py` exercises every layer of the stack and exits non-zero on the
+first failure, so it works as a pre-commit or CI gate:
+
+```bash
+backend/.venv/Scripts/python devops_pipeline.py    # Windows
+# backend/.venv/bin/python devops_pipeline.py      # macOS/Linux
+```
+
+| Stage | What it verifies |
+| --- | --- |
+| `environment` | virtualenv, `node_modules` and `.env` files are in place |
+| `backend` | every module byte-compiles and the FastAPI app imports |
+| `api` | all 11 routes, branch filters, auth, validation and dashboard maths |
+| `database` | the real Supabase instance is reachable and fully migrated |
+| `frontend` | `oxlint` and a production `vite build` for both apps |
+| `integration` | a real uvicorn server answering real HTTP booking requests |
+
+API and integration stages run against a throwaway SQLite database, so the
+pipeline never writes to live Supabase records. Useful flags:
+`--skip-frontend` and `--skip-live-db`.
 
 ---
 

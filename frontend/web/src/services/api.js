@@ -44,6 +44,13 @@ export const webApi = {
     }
   },
 
+  async getBarbers(branch = '') {
+    const url = branch ? `${API_BASE}/barbers/roster?branch=${encodeURIComponent(branch)}` : `${API_BASE}/barbers/roster`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to fetch the chair roster');
+    return await res.json();
+  },
+
   async bookAppointment(data) {
     const res = await fetch(`${API_BASE}/appointments`, {
       method: 'POST',
