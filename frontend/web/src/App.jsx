@@ -374,6 +374,7 @@ export default function App() {
 
       {/* Live Booking Modal */}
       <BookingModal
+        key={selectedPackage?.id || selectedPackage?.name || 'default'}
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
         initialPackage={selectedPackage}

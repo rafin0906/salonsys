@@ -92,3 +92,6 @@ lerna-debug.log*
 ehthumbs.db
 Thumbs.db
 desktop.ini
+
+# Root credentials file (real secrets, never commit)
+/env

@@ -67,7 +67,7 @@ export default function CustomerDataView() {
   useEffect(() => {
     api.getUsers()
       .then((users) => {
-        if (users && users.length) setCustomers(users);
+        if (Array.isArray(users)) setCustomers(users);
       })
       .catch((e) => console.warn('Customer API fallback:', e));
   }, []);

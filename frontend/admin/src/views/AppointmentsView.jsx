@@ -35,14 +35,14 @@ export default function AppointmentsView({ activeBranch = 'All Sanctuaries' }) {
         api.getBarbers(activeBranch),
         api.getPackages(),
       ]);
-      if (apts && apts.length) setAppointments(apts);
+      if (Array.isArray(apts)) setAppointments(apts);
       if (bList && bList.length) {
         setBarbers(bList);
-        setSelectedBarber(bList[0].name);
+        setSelectedBarber((current) => (bList.some((b) => b.name === current) ? current : bList[0].name));
       }
       if (pList && pList.length) {
         setPackages(pList);
-        setSelectedPackage(pList[0]);
+        setSelectedPackage((current) => pList.find((p) => p.name === current?.name) || pList[0]);
       }
     } catch (e) {
       console.warn('Backend offline or loading, using active session state:', e);

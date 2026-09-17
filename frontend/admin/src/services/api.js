@@ -79,6 +79,16 @@ export const api = {
     return res.json();
   },
 
+  async createPackage(data) {
+    const res = await fetch(`${API_BASE}/packages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to create package');
+    return res.json();
+  },
+
   // Customers / Users
   async getUsers() {
     const res = await fetch(`${API_BASE}/users`);

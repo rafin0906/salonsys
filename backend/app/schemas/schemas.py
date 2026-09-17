@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Literal, Optional, List
 from pydantic import BaseModel, ConfigDict
 
 # User Schemas
@@ -65,13 +65,15 @@ class PackageResponse(PackageBase):
 
 
 # Appointment Schemas
+AppointmentStatus = Literal["Confirmed", "In-Service", "Completed", "Cancelled"]
+
 class AppointmentBase(BaseModel):
     customer: str
     package: str
     price: float
     assigned_to: str
     contact: Optional[str] = None
-    status: Optional[str] = "Confirmed"
+    status: AppointmentStatus = "Confirmed"
     branch: Optional[str] = "Rajshahi Atelier"
     scheduled_time: Optional[str] = None
 
@@ -79,7 +81,7 @@ class AppointmentCreate(AppointmentBase):
     pass
 
 class AppointmentUpdate(BaseModel):
-    status: Optional[str] = None
+    status: Optional[AppointmentStatus] = None
     assigned_to: Optional[str] = None
     scheduled_time: Optional[str] = None
 

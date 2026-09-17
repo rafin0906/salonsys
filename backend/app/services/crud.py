@@ -1,8 +1,36 @@
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models.models import User, Barber, Package, Appointment
 from app.schemas.schemas import UserCreate, BarberCreate, PackageCreate, AppointmentCreate, AppointmentUpdate
+
+TAKA = "৳"
+
+# The studio trades in Bangladesh, so "today" must roll over at local midnight,
+# not at 06:00 local, which is what a UTC day boundary would give.
+STUDIO_TZ = ZoneInfo("Asia/Dhaka")
+
+
+def studio_date(value=None):
+    """The studio-local calendar date of a timestamp (naive values are UTC)."""
+    if value is None:
+        return datetime.now(STUDIO_TZ).date()
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(STUDIO_TZ).date()
+
+
+def _money(amount: int) -> str:
+    return f"{TAKA}{amount:,}"
+
+
+def _as_int(value) -> int:
+    """Visit counts and spend are stored as display strings ('12', '৳17,400')."""
+    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+    return int(digits) if digits else 0
+
 
 # --- Users ---
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
@@ -49,11 +77,9 @@ def create_package(db: Session, pkg_in: PackageCreate) -> Package:
 
 # --- Appointments ---
 def get_appointments(db: Session, branch: Optional[str] = None) -> List[Appointment]:
-    q = db.query(Appointment).order_by(desc(Appointment.created_at))
-    if branch and branch != "All Sanctuaries":
-        clean_branch = branch.replace(" Atelier", "").strip()
-        q = q.filter(Appointment.branch.ilike(f"%{clean_branch}%"))
-    return q.all()
+    return _branch_filter(
+        db.query(Appointment).order_by(desc(Appointment.created_at)), branch
+    ).all()
 
 def create_appointment(db: Session, apt_in: AppointmentCreate) -> Appointment:
     db_apt = Appointment(**apt_in.model_dump())
@@ -61,25 +87,22 @@ def create_appointment(db: Session, apt_in: AppointmentCreate) -> Appointment:
     db.commit()
     db.refresh(db_apt)
 
-    # Check if user exists or update visits
-    user = get_user_by_contact(db, db_apt.contact) if db_apt.contact else None
-    if user:
-        try:
-            visits = int(user.total_visits) + 1
-            user.total_visits = str(visits)
-            db.commit()
-        except Exception:
-            pass
-    elif db_apt.contact:
-        new_u = User(
-            name=db_apt.customer,
-            contact=db_apt.contact,
-            first_service_date=db_apt.scheduled_time or "2026-09-16",
-            preferred_barber=db_apt.assigned_to,
-            total_visits="1",
-            total_spent=f"৳{int(db_apt.price):,}"
-        )
-        db.add(new_u)
+    # Roll the booking into the customer ledger (create or update the patron).
+    if db_apt.contact:
+        user = get_user_by_contact(db, db_apt.contact)
+        if user:
+            user.total_visits = str(_as_int(user.total_visits) + 1)
+            user.total_spent = _money(_as_int(user.total_spent) + int(db_apt.price or 0))
+            user.preferred_barber = db_apt.assigned_to
+        else:
+            db.add(User(
+                name=db_apt.customer,
+                contact=db_apt.contact,
+                first_service_date=db_apt.scheduled_time or studio_date().isoformat(),
+                preferred_barber=db_apt.assigned_to,
+                total_visits="1",
+                total_spent=_money(int(db_apt.price or 0)),
+            ))
         db.commit()
 
     return db_apt
@@ -100,38 +123,51 @@ def update_appointment(db: Session, apt_id: str, apt_update: AppointmentUpdate) 
 
 
 # --- Dashboard Stats ---
-def get_dashboard_summary(db: Session, branch: Optional[str] = None):
-    total_customers = db.query(User).count()
-    barbers_count = db.query(Barber).count()
-    
-    appointments_q = db.query(Appointment)
+def _branch_filter(query, branch: Optional[str]):
+    """Narrow a query to one sanctuary; 'All Sanctuaries'/None means no filter."""
     if branch and branch != "All Sanctuaries":
         clean = branch.replace(" Atelier", "").strip()
-        appointments_q = appointments_q.filter(Appointment.branch.ilike(f"%{clean}%"))
-        
-    all_apts = appointments_q.all()
-    today_count = len(all_apts)
-    today_revenue = sum(a.price for a in all_apts)
-    recent_five = all_apts[:5]
+        query = query.filter(Appointment.branch.ilike(f"%{clean}%"))
+    return query
 
+
+def get_dashboard_summary(db: Session, branch: Optional[str] = None):
+    appointments = _branch_filter(
+        db.query(Appointment).order_by(desc(Appointment.created_at)), branch
+    ).all()
+
+    today = studio_date()
+    todays = [a for a in appointments if a.created_at and studio_date(a.created_at) == today]
+    today_revenue = sum(a.price or 0 for a in todays)
+
+    # Real appointment volume for the trailing 7 days (oldest -> today).
+    counts = []
+    for offset in range(6, -1, -1):
+        day = today - timedelta(days=offset)
+        total = sum(1 for a in appointments if a.created_at and studio_date(a.created_at) == day)
+        counts.append((day, total))
+
+    peak = max((c for _, c in counts), default=0)
+    # The UI highlights a single busiest day, so break ties on the earliest one.
+    peak_index = next((i for i, (_, c) in enumerate(counts) if c == peak), -1) if peak else -1
     activity_chart = [
-        {"day": "Mon", "appointments": 14, "bar_height": 90},
-        {"day": "Tue", "appointments": 18, "bar_height": 105},
-        {"day": "Wed", "appointments": 12, "bar_height": 75},
-        {"day": "Thu", "appointments": 22, "bar_height": 120},
-        {"day": "Fri", "appointments": 25, "bar_height": 130},
-        {"day": "Sat", "appointments": 31, "bar_height": 145, "is_peak": True},
-        {"day": "Sun", "appointments": 27, "bar_height": 135},
+        {
+            "day": day.strftime("%a"),
+            "appointments": total,
+            "bar_height": round(25 + 120 * total / peak) if peak else 25,
+            "is_peak": i == peak_index,
+        }
+        for i, (day, total) in enumerate(counts)
     ]
 
     return {
-        "total_customers": total_customers or 126,
-        "today_appointments": today_count or 23,
-        "today_revenue": today_revenue or 8450.0,
-        "total_barbers": barbers_count or 6,
-        "revenue_formatted": f"৳{int(today_revenue or 8450):,}",
+        "total_customers": db.query(User).count(),
+        "today_appointments": len(todays),
+        "today_revenue": today_revenue,
+        "total_barbers": db.query(Barber).count(),
+        "revenue_formatted": _money(int(today_revenue)),
         "activity_chart": activity_chart,
-        "recent_appointments": recent_five
+        "recent_appointments": appointments[:5],
     }
 
 
