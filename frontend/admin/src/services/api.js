@@ -79,6 +79,16 @@ export const api = {
     return res.json();
   },
 
+  async updatePackage(id, data) {
+    const res = await fetch(`${API_BASE}/packages/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to update package');
+    return res.json();
+  },
+
   async createPackage(data) {
     const res = await fetch(`${API_BASE}/packages`, {
       method: 'POST',

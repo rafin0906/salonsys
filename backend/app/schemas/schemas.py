@@ -45,16 +45,37 @@ class BarberResponse(BarberBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BarberPublic(BaseModel):
+    """Client-safe barber record for the public reservation portal."""
+    id: str
+    name: str
+    branch: str
+    role: Optional[str] = None
+    rating: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # Package Schemas
 class PackageBase(BaseModel):
     name: str
     services: List[str] = []
     actual_price: float
-    discount_price: float
+    # Optional: omit it and the package simply sells at its list price.
+    discount_price: Optional[float] = None
     package_number: Optional[str] = "01"
 
 class PackageCreate(PackageBase):
     pass
+
+class PackageUpdate(BaseModel):
+    """Every field optional - only what the admin actually changed is sent."""
+    name: Optional[str] = None
+    services: Optional[List[str]] = None
+    actual_price: Optional[float] = None
+    discount_price: Optional[float] = None
+    package_number: Optional[str] = None
+
 
 class PackageResponse(PackageBase):
     id: str

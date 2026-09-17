@@ -15,6 +15,7 @@ export default function PackagesView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState(BLANK_PACKAGE);
+  const [editingId, setEditingId] = useState(null);
 
   const loadPackages = async () => {
     try {
@@ -31,23 +32,51 @@ export default function PackagesView() {
     loadPackages();
   }, []);
 
-  const handleAddPackage = async (e) => {
+  // A package only reads as discounted when the offer actually undercuts the
+  // list price - equal (or absent) prices show as a single figure.
+  const isDiscounted = (pkg) => pkg.discount_price != null && pkg.discount_price < pkg.actual_price;
+
+  // Blank draft creates; a draft seeded from a card edits that card.
+  const openDrawer = (pkg = null) => {
+    setEditingId(pkg ? pkg.id : null);
+    setDraft(pkg ? {
+      package_number: pkg.package_number || '',
+      name: pkg.name || '',
+      actual_price: String(pkg.actual_price ?? ''),
+      discount_price: isDiscounted(pkg) ? String(pkg.discount_price) : '',
+      services: (pkg.services || []).join('\n'),
+    } : BLANK_PACKAGE);
+    setError('');
+    setIsDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setIsDrawerOpen(false);
+    setDraft(BLANK_PACKAGE);
+    setEditingId(null);
+  };
+
+  const handleSavePackage = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    const payload = {
+      package_number: draft.package_number || String(packages.length + 1).padStart(2, '0'),
+      name: draft.name.trim(),
+      actual_price: Number(draft.actual_price),
+      discount_price: draft.discount_price === '' ? null : Number(draft.discount_price),
+      services: draft.services.split('\n').map((s) => s.trim()).filter(Boolean),
+    };
     try {
-      const created = await api.createPackage({
-        package_number: draft.package_number || String(packages.length + 1).padStart(2, '0'),
-        name: draft.name.trim(),
-        actual_price: Number(draft.actual_price),
-        discount_price: Number(draft.discount_price),
-        services: draft.services.split('\n').map((s) => s.trim()).filter(Boolean),
-      });
-      setPackages([...packages, created]);
-      setIsDrawerOpen(false);
-      setDraft(BLANK_PACKAGE);
+      const saved = editingId
+        ? await api.updatePackage(editingId, payload)
+        : await api.createPackage(payload);
+      setPackages(editingId
+        ? packages.map((p) => (p.id === editingId ? saved : p))
+        : [...packages, saved]);
+      closeDrawer();
     } catch {
-      setError('Could not save the package. Check the backend connection and try again.');
+      setError(`Could not ${editingId ? 'update' : 'save'} the package. Check the backend connection and try again.`);
     } finally {
       setLoading(false);
     }
@@ -69,7 +98,7 @@ export default function PackagesView() {
           <h1 className="font-headline-lg text-headline-lg text-on-surface">Packages</h1>
         </div>
         <button
-          onClick={() => setIsDrawerOpen(true)}
+          onClick={() => openDrawer()}
           className="px-5 py-2.5 bg-primary-container hover:bg-primary text-on-primary-container hover:text-on-primary font-label-lg text-label-lg uppercase tracking-wider rounded-[2px] transition-colors flex items-center gap-2 cursor-pointer font-medium self-start sm:self-auto shadow-sm"
           type="button"
         >
@@ -107,11 +136,20 @@ export default function PackagesView() {
                   PACKAGE {pkg.package_number} — {pkg.name}
                 </h2>
               </div>
-              {pkg.actual_price > 0 && (
-                <span className="px-space-md py-1 border border-outline-variant/40 text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider rounded-[2px] whitespace-nowrap">
-                  {Math.round(100 - (pkg.discount_price / pkg.actual_price) * 100)}% off
-                </span>
-              )}
+              <div className="flex items-center gap-space-sm shrink-0">
+                {isDiscounted(pkg) && (
+                  <span className="px-space-md py-1 border border-outline-variant/40 text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider rounded-[2px] whitespace-nowrap">
+                    {Math.round(100 - (pkg.discount_price / pkg.actual_price) * 100)}% off
+                  </span>
+                )}
+                <button
+                  onClick={() => openDrawer(pkg)}
+                  className="px-space-md py-1 border border-outline-variant/40 hover:border-primary text-on-surface-variant hover:text-primary font-label-sm text-label-sm uppercase tracking-wider transition-colors cursor-pointer rounded-[2px]"
+                  type="button"
+                >
+                  Edit
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md pt-space-xs border-t border-outline-variant/30">
@@ -130,20 +168,22 @@ export default function PackagesView() {
               </div>
 
               <div className="flex flex-col justify-end gap-space-xs md:items-end">
-                <div className="flex items-baseline gap-space-md">
-                  <span className="font-label-sm text-label-sm uppercase tracking-wider text-outline">
-                    Actual Price
-                  </span>
-                  <span className="font-body-md text-body-md text-on-surface-variant line-through font-mono">
-                    ৳{Number(pkg.actual_price).toLocaleString()}
-                  </span>
-                </div>
+                {isDiscounted(pkg) && (
+                  <div className="flex items-baseline gap-space-md">
+                    <span className="font-label-sm text-label-sm uppercase tracking-wider text-outline">
+                      Actual Price
+                    </span>
+                    <span className="font-body-md text-body-md text-on-surface-variant line-through font-mono">
+                      ৳{Number(pkg.actual_price).toLocaleString()}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-baseline gap-space-md">
                   <span className="font-label-sm text-label-sm uppercase tracking-wider text-primary font-medium">
-                    Discount Price
+                    {isDiscounted(pkg) ? 'Discount Price' : 'Price'}
                   </span>
                   <span className="font-headline-sm text-headline-sm text-primary font-mono font-medium">
-                    ৳{Number(pkg.discount_price).toLocaleString()}
+                    ৳{Number(isDiscounted(pkg) ? pkg.discount_price : pkg.actual_price).toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -160,14 +200,14 @@ export default function PackagesView() {
               <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant/30 bg-surface-container-lowest">
                 <div>
                   <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-0.5">
-                    Catalog Record
+                    {editingId ? 'Editing Catalog Record' : 'Catalog Record'}
                   </span>
                   <h3 className="font-headline-sm text-headline-sm text-on-surface uppercase tracking-wide">
-                    Add New Package
+                    {editingId ? `Package ${draft.package_number}` : 'Add New Package'}
                   </h3>
                 </div>
                 <button
-                  onClick={() => setIsDrawerOpen(false)}
+                  onClick={closeDrawer}
                   className="text-on-surface-variant hover:text-on-surface p-1 transition-colors cursor-pointer"
                   type="button"
                 >
@@ -175,7 +215,7 @@ export default function PackagesView() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddPackage} id="addPackageForm" className="flex flex-col gap-5 p-6">
+              <form onSubmit={handleSavePackage} id="addPackageForm" className="flex flex-col gap-5 p-6">
                 <div className="flex flex-col gap-1.5">
                   <label className={labelClass}>Package Number</label>
                   <input
@@ -213,12 +253,11 @@ export default function PackagesView() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className={labelClass}>Discount Price</label>
+                    <label className={labelClass}>Discount Price (optional)</label>
                     <input
                       className={inputClass}
                       min="0"
-                      placeholder="1800"
-                      required
+                      placeholder="leave blank for none"
                       type="number"
                       value={draft.discount_price}
                       onChange={(e) => field('discount_price', e.target.value)}
@@ -241,7 +280,7 @@ export default function PackagesView() {
 
             <div className="p-6 border-t border-outline-variant/30 bg-surface-container-lowest flex items-center justify-end gap-3">
               <button
-                onClick={() => setIsDrawerOpen(false)}
+                onClick={closeDrawer}
                 className="px-5 py-2.5 border border-outline-variant/40 hover:border-outline text-on-surface font-label-lg text-label-lg uppercase tracking-wider rounded transition-colors cursor-pointer"
                 type="button"
               >
@@ -253,7 +292,7 @@ export default function PackagesView() {
                 className="px-6 py-2.5 bg-primary-container hover:bg-primary text-on-primary-container hover:text-on-primary font-label-lg text-label-lg rounded uppercase tracking-wider font-medium transition-colors cursor-pointer shadow-sm disabled:opacity-50"
                 type="submit"
               >
-                {loading ? 'Saving...' : 'Save Package'}
+                {loading ? 'Saving...' : editingId ? 'Update Package' : 'Save Package'}
               </button>
             </div>
           </div>

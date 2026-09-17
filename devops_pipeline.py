@@ -166,6 +166,20 @@ with TestClient(app) as c:
     check("empty branch returns empty list", empty == [], empty)
     rajb = c.get("/api/barbers", params={"branch": "Rajshahi Atelier"}).json()
     check("barbers filter by branch", len(rajb) == 2, len(rajb))
+    # --- public chair roster (client portal) ---
+    roster = c.get("/api/barbers/roster").json()
+    check("GET /api/barbers/roster lists every chair", len(roster) == 6, len(roster))
+    check("roster withholds staff contact and dob",
+          all({"contact", "dob", "joining_date"}.isdisjoint(b) for b in roster),
+          sorted(roster[0]) if roster else "empty")
+    check("roster exposes what a client picks by",
+          all({"id", "name", "branch", "role", "rating"} <= set(b) for b in roster))
+    raj_roster = c.get("/api/barbers/roster", params={"branch": "Rajshahi Atelier"}).json()
+    check("roster filters to the chosen sanctuary",
+          len(raj_roster) == 2 and all(b["branch"] == "Rajshahi" for b in raj_roster), len(raj_roster))
+    check("roster is empty for a branch with no chairs",
+          c.get("/api/barbers/roster", params={"branch": "Sylhet Atelier"}).json() == [])
+
     check("All Sanctuaries bypasses filter",
           len(c.get("/api/appointments", params={"branch": "All Sanctuaries"}).json()) == 5)
 
@@ -191,16 +205,27 @@ with TestClient(app) as c:
     check("created appointment gets a uuid", len(apt["id"]) == 36, apt["id"])
     check("created appointment keeps its price", apt["price"] == 1800, apt["price"])
 
+    check("booking records the chosen stylist", apt["assigned_to"] == "Hasan Ali", apt["assigned_to"])
+
     ledger = [u for u in c.get("/api/users").json() if u["contact"] == "01900000001"]
     check("new booking creates the patron", len(ledger) == 1, len(ledger))
     check("patron spend recorded", ledger and ledger[0]["total_spent"] == "৳1,800", ledger and ledger[0]["total_spent"])
+    check("chosen stylist becomes the patron's preferred barber",
+          ledger and ledger[0]["preferred_barber"] == "Hasan Ali", ledger and ledger[0]["preferred_barber"])
 
     c.post("/api/appointments", json={**booking, "price": 500, "package": "Essential Maintenance Clean"})
+
     ledger = [u for u in c.get("/api/users").json() if u["contact"] == "01900000001"][0]
     check("repeat visit increments count", ledger["total_visits"] == "2", ledger["total_visits"])
     check("repeat visit accumulates spend", ledger["total_spent"] == "৳2,300", ledger["total_spent"])
     check("no duplicate patron row",
           sum(1 for u in c.get("/api/users").json() if u["contact"] == "01900000001") == 1)
+
+    any_stylist = c.post("/api/appointments", json={**booking, "contact": "01900000008",
+                                                    "assigned_to": "Any available stylist"})
+    check("booking without a stylist preference is accepted",
+          any_stylist.status_code == 200 and any_stylist.json()["assigned_to"] == "Any available stylist",
+          any_stylist.text[:160])
 
     # --- status transitions and validation ---
     patched = c.patch(f"/api/appointments/{apt['id']}", json={"status": "In-Service"})
@@ -220,6 +245,45 @@ with TestClient(app) as c:
     np = c.post("/api/packages", json={"name": "Pipeline Package", "actual_price": 1000,
                                        "discount_price": 700, "services": ["A", "B"], "package_number": "09"})
     check("POST /api/packages creates", np.status_code == 200 and np.json()["services"] == ["A", "B"], np.text[:200])
+    # Discount is optional: omitting it must not 422, and the package must come
+    # back priced at list so clients render a single figure with no strikethrough.
+    plain = c.post("/api/packages", json={"name": "List Price Only", "actual_price": 1200,
+                                          "services": ["Cut"], "package_number": "10"})
+    check("POST /api/packages accepts no discount", plain.status_code == 200, plain.text[:160])
+    check("omitted discount falls back to list price",
+          plain.status_code == 200 and plain.json()["discount_price"] == 1200,
+          plain.status_code == 200 and plain.json()["discount_price"])
+    check("explicit null discount accepted",
+          c.post("/api/packages", json={"name": "Null Discount", "actual_price": 900,
+                                        "discount_price": None, "services": ["Cut"],
+                                        "package_number": "11"}).json()["discount_price"] == 900)
+    check("a real discount is still stored as given",
+          c.post("/api/packages", json={"name": "Real Discount", "actual_price": 1000,
+                                        "discount_price": 600, "services": ["Cut"],
+                                        "package_number": "12"}).json()["discount_price"] == 600)
+    # --- editing an existing package ---
+    target = plain.json()
+    renamed = c.patch(f"/api/packages/{target['id']}", json={"name": "Renamed Routine"})
+    check("PATCH /api/packages renames", renamed.status_code == 200 and renamed.json()["name"] == "Renamed Routine",
+          renamed.text[:160])
+    check("PATCH leaves untouched fields alone",
+          renamed.json()["actual_price"] == 1200 and renamed.json()["services"] == ["Cut"],
+          renamed.json()["services"])
+    repriced = c.patch(f"/api/packages/{target['id']}", json={"actual_price": 1500, "discount_price": 1100})
+    check("PATCH reprices a package",
+          repriced.json()["actual_price"] == 1500 and repriced.json()["discount_price"] == 1100)
+    cleared = c.patch(f"/api/packages/{target['id']}", json={"discount_price": None})
+    check("clearing the discount falls back to list price",
+          cleared.json()["discount_price"] == 1500, cleared.json()["discount_price"])
+    check("PATCH rewrites the service list",
+          c.patch(f"/api/packages/{target['id']}", json={"services": ["A", "B", "C"]}).json()["services"] == ["A", "B", "C"])
+    check("PATCH unknown package is 404",
+          c.patch("/api/packages/nope", json={"name": "x"}).status_code == 404)
+    check("PATCH rejects a bad price type",
+          c.patch(f"/api/packages/{target['id']}", json={"actual_price": "free"}).status_code == 422)
+    check("edits persist to the catalogue listing",
+          next(p for p in c.get("/api/packages").json() if p["id"] == target["id"])["name"] == "Renamed Routine")
+
     check("POST /api/packages validates price type",
           c.post("/api/packages", json={"name": "Bad", "actual_price": "free", "discount_price": 1}).status_code == 422)
     nu = c.post("/api/users", json={"name": "Pipeline Patron", "contact": "01900000003"})

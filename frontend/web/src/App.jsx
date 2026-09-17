@@ -39,17 +39,36 @@ const BRANCHES = [
   },
 ];
 
+const STUDIO_PHONE = { display: '01805-209880', tel: '+8801805209880' };
+
 export default function App() {
   const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0]);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [packages, setPackages] = useState([]);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     webApi.getPackages().then((data) => {
       if (data && data.length) setPackages(data);
     });
   }, []);
+
+  // On a phone the tel: href opens the dialer; everywhere else that does
+  // nothing useful, so put the number on the clipboard instead.
+  const copyNumber = async () => {
+    if (!navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(STUDIO_PHONE.display);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard denied - the tel: link still carries the call.
+    }
+  };
+
+  // Only strike the list price through when the offer really undercuts it.
+  const isDiscounted = (pkg) => pkg.discount_price != null && pkg.discount_price < pkg.actual_price;
 
   const handleBookPackage = (pkg) => {
     setSelectedPackage(pkg);
@@ -108,11 +127,32 @@ export default function App() {
                   Reserve Session
                 </button>
                 <a
+                  href={`tel:${STUDIO_PHONE.tel}`}
+                  onClick={copyNumber}
+                  className="px-7 py-3.5 bg-transparent border border-primary/70 text-primary font-label-md text-label-md tracking-[0.12em] uppercase rounded-[2px] transition-colors hover:bg-primary/10 flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[18px]">call</span>
+                  {copied ? 'Number Copied' : 'Call Now'}
+                </a>
+                <a
                   href="#studio"
                   className="px-7 py-3.5 bg-transparent border border-outline-variant/80 text-on-surface font-label-md text-label-md tracking-[0.12em] uppercase rounded-[2px] transition-colors hover:bg-surface-container-low"
                 >
                   Explore Studio
                 </a>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3">
+                <a
+                  href={`tel:${STUDIO_PHONE.tel}`}
+                  onClick={copyNumber}
+                  className="font-mono text-primary text-lg tracking-wide hover:underline"
+                >
+                  {STUDIO_PHONE.display}
+                </a>
+                <span className="font-label-sm text-[11px] uppercase tracking-[0.16em] text-outline">
+                  {copied ? 'Copied to clipboard' : 'Tap to call · click to copy'}
+                </span>
               </div>
 
               <div className="mt-8 pt-4 border-t border-outline-variant/30 w-full max-w-xl flex flex-wrap items-center justify-between gap-y-2 text-outline text-label-sm font-label-sm tracking-[0.16em] uppercase">
@@ -240,11 +280,13 @@ export default function App() {
                       PACKAGE {pkg.package_number || '01'}
                     </span>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-outline line-through text-body-sm font-mono">
-                        ৳{(pkg.actual_price || 1500).toLocaleString()}
-                      </span>
+                      {isDiscounted(pkg) && (
+                        <span className="text-outline line-through text-body-sm font-mono">
+                          ৳{Number(pkg.actual_price).toLocaleString()}
+                        </span>
+                      )}
                       <span className="font-headline-sm text-xl text-primary font-mono font-medium">
-                        ৳{(pkg.discount_price || 990).toLocaleString()}
+                        ৳{Number(isDiscounted(pkg) ? pkg.discount_price : pkg.actual_price).toLocaleString()}
                       </span>
                     </div>
                   </div>

@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models.models import User, Barber, Package, Appointment
-from app.schemas.schemas import UserCreate, BarberCreate, PackageCreate, AppointmentCreate, AppointmentUpdate
+from app.schemas.schemas import UserCreate, BarberCreate, PackageCreate, PackageUpdate, AppointmentCreate, AppointmentUpdate
 
 TAKA = "৳"
 
@@ -68,8 +68,27 @@ def get_packages(db: Session) -> List[Package]:
     return db.query(Package).order_by(Package.package_number).all()
 
 def create_package(db: Session, pkg_in: PackageCreate) -> Package:
-    db_pkg = Package(**pkg_in.model_dump())
+    data = pkg_in.model_dump()
+    # No discount means the package sells at list price; clients decide whether
+    # to show a strikethrough by comparing the two, so keep the column filled.
+    if data.get("discount_price") is None:
+        data["discount_price"] = data["actual_price"]
+    db_pkg = Package(**data)
     db.add(db_pkg)
+    db.commit()
+    db.refresh(db_pkg)
+    return db_pkg
+
+
+def update_package(db: Session, pkg_id: str, pkg_update: PackageUpdate) -> Optional[Package]:
+    db_pkg = db.query(Package).filter(Package.id == pkg_id).first()
+    if not db_pkg:
+        return None
+    # exclude_unset keeps an omitted field untouched, so a partial edit stays partial.
+    for key, value in pkg_update.model_dump(exclude_unset=True).items():
+        setattr(db_pkg, key, value)
+    if db_pkg.discount_price is None:
+        db_pkg.discount_price = db_pkg.actual_price
     db.commit()
     db.refresh(db_pkg)
     return db_pkg
